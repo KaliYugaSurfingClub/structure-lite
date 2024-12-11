@@ -42,13 +42,38 @@ func Create[T any](name string) (*Page[T], error) {
 		return nil, errs.W(op, err)
 	}
 
-	page := &Page[T]{file: file}
+	page := newPage[T](file)
 
 	if err = page.writeCount(0); err != nil {
 		return nil, errs.W(op, err)
 	}
 
-	return newPage[T](file), nil
+	return page, nil
+}
+
+func CreateFromItems[T any](name string, items []T) (*Page[T], error) {
+	const op errs.Op = "page.CreateFromItems"
+
+	file, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0755)
+	if err != nil {
+		return nil, errs.W(op, err)
+	}
+
+	page := newPage[T](file)
+
+	defer DeleteIfErr(err, page)
+
+	if err = page.writeCount(len(items)); err != nil {
+		return nil, errs.W(op, err)
+	}
+
+	for _, item := range items {
+		if err = page.encoder.Encode(item); err != nil {
+			return nil, errs.W(op, err)
+		}
+	}
+
+	return page, nil
 }
 
 func (p *Page[T]) ReadAllItems(dst *[]T) error {
@@ -95,30 +120,16 @@ func (p *Page[T]) ReadCount() (int, error) {
 	return int(count), nil
 }
 
-func (p *Page[T]) writeCount(count int) error {
-	const op errs.Op = "page.writeCount"
-
-	if _, err := p.file.Seek(0, io.SeekStart); err != nil {
-		return errs.W(op, err)
-	}
-
-	if err := binary.Write(p.file, binary.LittleEndian, int32(count)); err != nil {
-		return errs.W(op, err)
-	}
-
-	return nil
-}
-
 func (p *Page[T]) InsertItem(item any) error {
 	const op errs.Op = "page.InsertItem"
 
-	//tmp, err := tempFileFrom(p.file)
+	//tmp, err := tempFileFrom(p.file) //todo save insert
 	//
 	//if err != nil {
 	//	return errs.W(op, err)
 	//}
 	//
-	//defer os.Remove(tmp.Name())
+	//defer os.Delete(tmp.Name())
 
 	if err := p.incrementCount(); err != nil {
 		return errs.W(op, err)
@@ -135,8 +146,8 @@ func (p *Page[T]) InsertItem(item any) error {
 	return nil
 }
 
-func (p *Page[T]) Remove() error {
-	const op errs.Op = "page.Remove"
+func (p *Page[T]) Delete() error {
+	const op errs.Op = "page.Delete"
 
 	if err := os.Remove(p.file.Name()); err != nil {
 		return errs.W(op, err)
@@ -149,6 +160,20 @@ func (p *Page[T]) Close() error {
 	const op errs.Op = "page.Close"
 
 	if err := p.file.Close(); err != nil {
+		return errs.W(op, err)
+	}
+
+	return nil
+}
+
+func (p *Page[T]) writeCount(count int) error {
+	const op errs.Op = "page.writeCount"
+
+	if _, err := p.file.Seek(0, io.SeekStart); err != nil {
+		return errs.W(op, err)
+	}
+
+	if err := binary.Write(p.file, binary.LittleEndian, int32(count)); err != nil {
 		return errs.W(op, err)
 	}
 
@@ -186,4 +211,8 @@ func (p *Page[T]) addItemToEnd(item any) error {
 	}
 
 	return nil
+}
+
+func (p *Page[T]) Name() string {
+	return p.file.Name()
 }

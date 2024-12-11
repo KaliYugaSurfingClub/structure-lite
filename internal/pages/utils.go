@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,4 +24,18 @@ func tempFileFrom(file *os.File) (*os.File, error) {
 	}
 
 	return tmp, nil
+}
+
+func DeleteIfErr[T any](err error, page *Page[T]) func() {
+	return func() {
+		if err == nil {
+			return
+		}
+
+		deleteError := page.Delete()
+
+		if deleteError != nil {
+			err = errors.Join(err, deleteError)
+		}
+	}
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"structure-lite/internal/table"
+	"structure-lite/internal/tables"
 	"time"
 )
 
@@ -39,12 +39,12 @@ func main() {
 	//	fmt.Println(item)
 	//}
 
-	t, err := table.New[User](4, "./data")
+	t, err := tables.New[User](4, "./data")
 	if err != nil {
 		panic(err)
 	}
 
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "123",
 		Age:       123,
 		PhotoURLs: []string{"123", "12s", "213"},
@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "asd",
 		Age:       213,
 		PhotoURLs: []string{"asdsad", "asdasd", "aadas"},
@@ -60,7 +60,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "87876tyty",
 		Age:       7,
 		PhotoURLs: []string{"saccxx", "xczxczzcx", "asdsadadsa"},
@@ -68,7 +68,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "777",
 		Age:       123,
 		PhotoURLs: []string{"ssdsad", "123123", "213312"},
@@ -83,7 +83,7 @@ func main() {
 	}
 	fmt.Printf("%+v\n", item)
 
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "87876tyty",
 		Age:       7,
 		PhotoURLs: []string{"saccxx", "xczxczzcx", "asdsadadsa"},
@@ -91,7 +91,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = t.Put(User{
+	err = t.Insert(User{
 		Name:      "777",
 		Age:       123,
 		PhotoURLs: []string{"ssdsad", "123123", "213312"},

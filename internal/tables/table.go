@@ -1,12 +1,11 @@
-package table
+package tables
 
 import (
 	"fmt"
 	"github.com/google/uuid"
-	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
+	"slices"
 	"structure-lite/internal/errs"
 	"structure-lite/internal/fsm"
 	"structure-lite/internal/pages"
@@ -36,32 +35,18 @@ func New[T any](itemsOnPage int, location string) (*Table[T], error) {
 		return nil, fmt.Errorf("failed to create directories for %s: %w", location, err)
 	}
 
-	err := filepath.WalkDir(location, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error accessing path %s: %w", path, err)
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		page, err := pages.Open[T](path)
-		if err != nil {
-			return fmt.Errorf("error opening page %s: %w", path, err)
-		}
-
-		log.Println("Init: Open page", path)
+	err := forPages[T](location, func(page *pages.Page[T]) error {
+		log.Printf("Init: Open page: %s\n", page.Name())
 
 		count, err := page.ReadCount()
 		if err != nil {
-			return fmt.Errorf("error reading count of page %s: %w", path, err)
+			return fmt.Errorf("error reading count of page %s: %w", page.Name(), err)
 		}
 
-		log.Println("Init: Read count", count)
+		log.Printf("Init: Read count %d from %s\n", count, page.Name())
 
 		if count < itemsOnPage {
 			table.fsm.Push(page, itemsOnPage-count)
-			log.Println("Init: add page to fsm", path)
 		}
 
 		return nil
@@ -74,16 +59,16 @@ func New[T any](itemsOnPage int, location string) (*Table[T], error) {
 	return table, nil
 }
 
-func (t *Table[T]) Put(item T) (err error) {
+func (t *Table[T]) Insert(item T) (err error) {
+	const op errs.Op = "table.Insert"
+
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
-
-	const op errs.Op = "table.Put"
 
 	page := t.fsm.Pop()
 
 	if page == nil {
-		if page, err = t.createPage(); err != nil {
+		if page, err = pages.Create[T](t.newPageName()); err != nil {
 			return errs.W(op, err)
 		}
 
@@ -98,31 +83,18 @@ func (t *Table[T]) Put(item T) (err error) {
 }
 
 func (t *Table[T]) Scan(limit int, offset int) ([]T, error) {
+	const op errs.Op = "table.Scan"
+
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
-
-	const op errs.Op = "table.Scan"
 
 	items := make([]T, 0, limit)
 	skipped := 0
 
-	err := filepath.WalkDir(t.location, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error accessing path %s: %w", path, err)
-		}
+	err := forPages(t.location, func(page *pages.Page[T]) error {
+		tmpItems := make([]T, 0, t.itemsOnPage)
 
-		if d.IsDir() {
-			return nil
-		}
-
-		page, err := pages.Open[T](path)
-		if err != nil {
-			return fmt.Errorf("error opening page %s: %w", path, err)
-		}
-
-		tmpItems := make([]T, 0)
-
-		if err = page.ReadAllItems(&tmpItems); err != nil {
+		if err := page.ReadAllItems(&tmpItems); err != nil {
 			return errs.W(op, err)
 		}
 
@@ -143,16 +115,45 @@ func (t *Table[T]) Scan(limit int, offset int) ([]T, error) {
 	return items, nil
 }
 
-func (t *Table[T]) createPage() (*pages.Page[T], error) {
-	const op errs.Op = "table.createPage"
+func (t *Table[T]) Delete(delFunc func(T) bool) error {
+	const op errs.Op = "table.Delete"
 
-	name := fmt.Sprintf("%s/%s", t.location, uuid.New().String())
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
 
-	page, err := pages.Create[T](name)
+	err := forPages(t.location, func(page *pages.Page[T]) error {
+		items := make([]T, 0, t.itemsOnPage)
+
+		if err := page.ReadAllItems(&items); err != nil {
+			return errs.W(op, err)
+		}
+
+		slices.DeleteFunc(items, delFunc)
+
+		newPage, err := pages.CreateFromItems(t.newPageName(), items)
+		if err != nil {
+			return errs.W(op, err)
+		}
+
+		defer pages.DeleteIfErr(err, newPage)
+
+		err = page.Delete()
+		if err != nil {
+			return errs.W(op, err)
+		}
+
+		t.fsm.Push(newPage, len(items))
+
+		return nil
+	})
 
 	if err != nil {
-		return nil, errs.W(op, err)
+		return errs.W(op, err)
 	}
 
-	return page, nil
+	return nil
+}
+
+func (t *Table[T]) newPageName() string {
+	return fmt.Sprintf("%s/%s", t.location, uuid.New().String())
 }
