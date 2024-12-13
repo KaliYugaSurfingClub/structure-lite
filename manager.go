@@ -23,6 +23,12 @@ func (u *UserManager) DeleteUserByName(name string) error {
 	})
 }
 
-func (u *UserManager) ListUsers(limit, offset int) ([]User, error) {
+func (u *UserManager) ListUsers(limit int, offset int) ([]User, error) {
 	return u.table.Scan(limit, offset)
+}
+
+func (u *UserManager) FilerByAge(limit int, offset int, age int) ([]User, error) {
+	return u.table.ScanFunc(limit, offset, func(user User) bool {
+		return user.Age >= age
+	})
 }

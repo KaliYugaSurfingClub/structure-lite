@@ -90,6 +90,17 @@ func (t *Table[T]) Insert(item T) (err error) {
 func (t *Table[T]) Scan(limit int, offset int) ([]T, error) {
 	const op errs.Op = "table.Scan"
 
+	items, err := t.ScanFunc(limit, offset, func(T) bool { return true })
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	return items, nil
+}
+
+func (t *Table[T]) ScanFunc(limit int, offset int, filter func(T) bool) ([]T, error) {
+	const op errs.Op = "table.Scan"
+
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
@@ -105,7 +116,11 @@ func (t *Table[T]) Scan(limit int, offset int) ([]T, error) {
 
 		t.info("%s: Read items: %+v of page: %s", op, tmpItems, t.location)
 
-		for _, item := range tmpItems {
+		filtered := slices.DeleteFunc(tmpItems, func(item T) bool {
+			return !filter(item)
+		})
+
+		for _, item := range filtered {
 			if len(items) == limit {
 				break
 			}
