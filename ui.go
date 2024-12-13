@@ -20,8 +20,11 @@ type UserTableApp struct {
 	AddressInput *widget.Entry
 	TagsInput    *widget.Entry
 	AgeInput     *widget.Entry
+	LimitInput   *widget.Entry // Ввод для лимита
+	OffsetInput  *widget.Entry // Ввод для оффсета
 	AddButton    *widget.Button
 	DeleteButton *widget.Button
+	UpdateButton *widget.Button // Кнопка для обновления списка
 	UserManager  *UserManager
 	UserData     []string
 }
@@ -29,10 +32,14 @@ type UserTableApp struct {
 func NewUserTableApp(manager *UserManager) *UserTableApp {
 	a := app.New()
 	w := a.NewWindow("User Table")
+
+	// Устанавливаем окно на всю ширину экрана
 	w.Resize(fyne.NewSize(800, 600))
+	w.SetFixedSize(false) // Окно будет изменять размеры
 
 	userData := []string{}
 
+	// Список пользователей
 	userList := widget.NewList(
 		func() int { return len(userData) },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -41,6 +48,7 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 		},
 	)
 
+	// Поля ввода для добавления нового пользователя
 	nameInput := widget.NewEntry()
 	nameInput.SetPlaceHolder("Enter user name")
 
@@ -56,6 +64,14 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 	ageInput := widget.NewEntry()
 	ageInput.SetPlaceHolder("Enter age (number)")
 
+	// Поля для лимита и оффсета
+	limitInput := widget.NewEntry()
+	limitInput.SetPlaceHolder("Enter limit (number)")
+
+	offsetInput := widget.NewEntry()
+	offsetInput.SetPlaceHolder("Enter offset (number)")
+
+	// Кнопка для добавления нового пользователя
 	addButton := widget.NewButton("Add User", func() {
 		name := nameInput.Text
 		email := emailInput.Text
@@ -87,7 +103,7 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 			return
 		}
 
-		refreshUserList(userList, manager, &userData)
+		refreshUserList(userList, manager, &userData, 100, 0)
 		nameInput.SetText("")
 		emailInput.SetText("")
 		addressInput.SetText("")
@@ -95,6 +111,7 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 		ageInput.SetText("")
 	})
 
+	// Кнопка для удаления пользователя по имени
 	deleteButton := widget.NewButton("Delete User by Name", func() {
 		name := nameInput.Text
 		if name == "" {
@@ -108,10 +125,28 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 			return
 		}
 
-		refreshUserList(userList, manager, &userData)
+		refreshUserList(userList, manager, &userData, 100, 0)
 		nameInput.SetText("")
 	})
 
+	// Кнопка для обновления списка с учётом лимита и оффсета
+	updateButton := widget.NewButton("Update List", func() {
+		limit, err := strconv.Atoi(limitInput.Text)
+		if err != nil || limit <= 0 {
+			log.Println("Invalid limit")
+			return
+		}
+
+		offset, err := strconv.Atoi(offsetInput.Text)
+		if err != nil || offset < 0 {
+			log.Println("Invalid offset")
+			return
+		}
+
+		refreshUserList(userList, manager, &userData, limit, offset)
+	})
+
+	// Формы для ввода данных
 	form := container.NewVBox(
 		widget.NewForm(
 			widget.NewFormItem("Name", nameInput),
@@ -121,14 +156,19 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 			widget.NewFormItem("Age", ageInput),
 		),
 		container.NewHBox(addButton, deleteButton),
+		widget.NewForm(
+			widget.NewFormItem("Limit", limitInput),
+			widget.NewFormItem("Offset", offsetInput),
+		),
+		updateButton, // Кнопка для обновления списка
 	)
 
-	content := container.NewHSplit(
-		container.NewVBox(widget.NewLabel("User List"), userList),
+	content := container.NewVSplit(
+		userList, // Вставляем пустой контейнер для растяжения
 		form,
 	)
-	content.SetOffset(0.7)
 
+	// Настройка контента окна
 	w.SetContent(content)
 
 	return &UserTableApp{
@@ -140,15 +180,19 @@ func NewUserTableApp(manager *UserManager) *UserTableApp {
 		AddressInput: addressInput,
 		TagsInput:    tagsInput,
 		AgeInput:     ageInput,
+		LimitInput:   limitInput,
+		OffsetInput:  offsetInput,
 		AddButton:    addButton,
 		DeleteButton: deleteButton,
+		UpdateButton: updateButton,
 		UserManager:  manager,
 		UserData:     userData,
 	}
 }
 
-func refreshUserList(userList *widget.List, manager *UserManager, userData *[]string) {
-	users, err := manager.ListUsers(100, 0)
+// Функция для обновления списка пользователей с учётом лимита и оффсета
+func refreshUserList(userList *widget.List, manager *UserManager, userData *[]string, limit, offset int) {
+	users, err := manager.ListUsers(limit, offset)
 	if err != nil {
 		log.Printf("Error fetching users: %v", err)
 		return
@@ -161,13 +205,15 @@ func refreshUserList(userList *widget.List, manager *UserManager, userData *[]st
 	userList.Refresh()
 }
 
+// Функция для форматирования информации о пользователе
 func formatUser(user User) string {
 	return "Name: " + user.Name + ", Email: " + user.Email + ", Address: " + user.Address +
 		", Tags: " + strings.Join(user.Tags, ",") + ", Age: " + strconv.Itoa(user.Age) +
 		", CreatedAt: " + user.CreatedAt.Format("2006-01-02")
 }
 
+// Метод для запуска приложения
 func (app *UserTableApp) Run() {
-	refreshUserList(app.UserList, app.UserManager, &app.UserData)
+	refreshUserList(app.UserList, app.UserManager, &app.UserData, 100, 0)
 	app.Window.ShowAndRun()
 }
