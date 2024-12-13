@@ -38,7 +38,7 @@ func forPages[T any](path string, f func(page *pages.Page[T]) error) error {
 	})
 
 	if err != nil {
-		return errs.W(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil

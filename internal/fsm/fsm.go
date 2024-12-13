@@ -35,7 +35,7 @@ func (h *FSM[T]) Pop() *pages.Page[T] {
 	root := h.items[0]
 
 	if root.space == 0 {
-		panic("critical: root free space is zero") //todo
+		panic("critical: root free space is zero")
 	}
 
 	root.space--

@@ -1,108 +1,39 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"log/slog"
+	"os"
 	"structure-lite/internal/tables"
 	"time"
 )
 
 type User struct {
-	Name      string
-	Age       int
-	CreatedAt time.Time
-	PhotoURLs []string
-}
-
-func init() {
-
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Address   string    `json:"address"`
+	Tags      []string  `json:"tags"`
+	Age       int       `json:"age"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func main() {
-	//file, err := os.OpenFile("./data/main.User/37558764-3d58-4031-8cb2-badd1a0089a2", os.O_RDWR, os.ModePerm)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//file.Seek(4, io.SeekStart)
-	//
-	//for {
-	//	item := new(User)
-	//	err := gob.NewDecoder(file).Decode(item)
-	//
-	//	if err == io.EOF {
-	//		break
-	//	}
-	//
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//
-	//	fmt.Println(item)
-	//}
+	opts := slog.HandlerOptions{Level: slog.LevelInfo}
+	handler := slog.NewTextHandler(os.Stdin, &opts)
+	logger := slog.New(handler)
 
-	t, err := tables.New[User](4, "./data")
+	location := "./temp_test_table"
+
+	itemsOnPage := 2
+
+	table, err := tables.New[User](itemsOnPage, location, logger)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize UserManager: %v", err)
 	}
 
-	err = t.Insert(User{
-		Name:      "123",
-		Age:       123,
-		PhotoURLs: []string{"123", "12s", "213"},
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = t.Insert(User{
-		Name:      "asd",
-		Age:       213,
-		PhotoURLs: []string{"asdsad", "asdasd", "aadas"},
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = t.Insert(User{
-		Name:      "87876tyty",
-		Age:       7,
-		PhotoURLs: []string{"saccxx", "xczxczzcx", "asdsadadsa"},
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = t.Insert(User{
-		Name:      "777",
-		Age:       123,
-		PhotoURLs: []string{"ssdsad", "123123", "213312"},
-	})
-	if err != nil {
-		panic(err)
-	}
+	manager := NewUserManager(table)
 
-	item, err := t.Scan(3, 1)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%+v\n", item)
+	app := NewUserTableApp(manager)
 
-	err = t.Insert(User{
-		Name:      "87876tyty",
-		Age:       7,
-		PhotoURLs: []string{"saccxx", "xczxczzcx", "asdsadadsa"},
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = t.Insert(User{
-		Name:      "777",
-		Age:       123,
-		PhotoURLs: []string{"ssdsad", "123123", "213312"},
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	item, err = t.Scan(1, 4)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%+v\n", item)
+	app.Run()
 }
